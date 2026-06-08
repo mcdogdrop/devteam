@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+"""Lightweight devteam MVP helper.
+
+This is not the full orchestrator yet. It supports project bootstrap and status
+inspection while the framework design stabilizes.
+"""
+
+from __future__ import annotations
+
+import argparse
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+TEMPLATES = REPO_ROOT / "templates"
+
+
+def copy_if_missing(src: Path, dst: Path) -> str:
+    if dst.exists():
+        return "exists"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dst)
+    return "created"
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    project = Path(args.project).expanduser().resolve()
+    project.mkdir(parents=True, exist_ok=True)
+    devteam = project / ".devteam"
+    devteam.mkdir(exist_ok=True)
+
+    for name in ["runs", "plans", "reviews", "brainstorms", "logs"]:
+        (devteam / name).mkdir(exist_ok=True)
+
+    project_yaml = copy_if_missing(TEMPLATES / "project.yaml", devteam / "project.yaml")
+    context_md = copy_if_missing(TEMPLATES / "context.md", devteam / "context.md")
+    claude_md = copy_if_missing(TEMPLATES / "CLAUDE.md", project / "CLAUDE.md")
+
+    print(f"project={project}")
+    print(f"devteam_dir={devteam}")
+    print(f"project_yaml={project_yaml}")
+    print(f"context_md={context_md}")
+    print(f"claude_md={claude_md}")
+    return 0
+
+
+def git_value(project: Path, *args: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(project), *args],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    project = Path(args.project).expanduser().resolve()
+    devteam = project / ".devteam"
+    print(f"project={project}")
+    print(f"devteam_initialized={str(devteam.exists()).lower()}")
+
+    if devteam.exists():
+        for name in ["project.yaml", "context.md", "runs", "plans", "reviews", "brainstorms", "logs"]:
+            p = devteam / name
+            print(f"{name}={str(p.exists()).lower()}")
+
+    branch = git_value(project, "branch", "--show-current")
+    status = git_value(project, "status", "--short")
+    if branch is not None:
+        print(f"git_branch={branch}")
+    if status is not None:
+        print("git_status=")
+        print(status or "(clean)")
+    return 0
+
+
+def not_implemented(name: str) -> int:
+    print(f"devteam {name}: not implemented in the documentation-first MVP yet", file=sys.stderr)
+    print("See docs/cli.md for the intended interface.", file=sys.stderr)
+    return 2
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="devteam MVP helper")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    init = sub.add_parser("init", help="initialize .devteam in a project")
+    init.add_argument("project", nargs="?", default=".")
+    init.set_defaults(func=cmd_init)
+
+    status = sub.add_parser("status", help="show project devteam status")
+    status.add_argument("project", nargs="?", default=".")
+    status.set_defaults(func=cmd_status)
+
+    for name in ["plan", "review-plan", "develop", "review", "fix", "brainstorm", "run"]:
+        p = sub.add_parser(name, help=f"future command: {name}")
+        p.add_argument("args", nargs="*")
+        p.set_defaults(func=lambda _args, n=name: not_implemented(n))
+
+    return parser
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

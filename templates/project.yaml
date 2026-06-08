@@ -1,0 +1,121 @@
+version: 0.1
+
+project:
+  name: my-project
+  description: Short project description
+  type: application
+  language: unknown
+  framework: null
+
+paths:
+  root: .
+  source:
+    - src
+  tests:
+    - tests
+  docs:
+    - docs
+  plans: .devteam/plans
+  reviews: .devteam/reviews
+  brainstorms: .devteam/brainstorms
+  runs: .devteam/runs
+  logs: .devteam/logs
+
+commands:
+  install: null
+  test: null
+  lint: null
+  typecheck: null
+  format: null
+
+git:
+  enabled: true
+  main_branch: main
+  auto_branch: true
+  auto_commit: true
+  auto_push: false
+  branch_prefix:
+    feature: feat
+    bugfix: fix
+    refactor: refactor
+    docs: docs
+    experiment: experiment
+
+team:
+  leader:
+    provider: claude
+    model: claude-opus-4.7
+    runner: claude-code
+    max_turns: 10
+    permissions:
+      read: true
+      write: false
+      bash:
+        - git status
+        - git diff
+        - git log
+        - git branch
+
+  developer:
+    provider: claude
+    model: claude-sonnet-4.6
+    runner: claude-code
+    max_turns: 25
+    permissions:
+      read: true
+      write: true
+      bash:
+        - git status
+        - git diff
+        - git add
+        - git commit
+        - git branch
+        - git checkout
+        - pytest
+        - python
+        - python3
+        - npm
+        - pnpm
+        - uv
+
+  reviewer:
+    provider: openai
+    model: gpt-5.4
+    runner: hermes
+    max_turns: 5
+    permissions:
+      read: true
+      write: false
+      bash:
+        - git status
+        - git diff
+        - git log
+
+  brainstormer:
+    provider: gemini
+    model: gemini-3-flash-preview
+    fallback_model: gemini-3.1-flash-lite
+    runner: gemini-cli
+    max_turns: 5
+    permissions:
+      read: true
+      write: false
+      bash:
+        - git log
+        - git status
+
+workflow:
+  default: feature
+  require_plan_review: true
+  require_code_review: true
+  require_tests_before_review: true
+  require_review_before_merge: true
+  allow_parallel_tasks: false
+  max_fix_iterations: 3
+  brainstorm_after_completion: true
+
+output:
+  format: markdown_with_yaml_frontmatter
+  save_prompts: true
+  save_raw_outputs: true
+  save_test_logs: true
